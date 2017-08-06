@@ -1,0 +1,112 @@
+---
+title: "Practical Machine Learning Final Project"
+author: "Pavarit Boonyasirichok"
+date: "August 3, 2017"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 1, digits = 2)
+library(caret)
+```
+  
+```{r packages}
+library(caret)
+set.seed(99)
+```
+  
+This is the final project of Practical Machine Learning course. An analysis is done on [Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har). The objective is to predict how well is the exercise is done, having `classe` variable as the output.
+  
+The data is processed, then fitted into different model, using cross validation. Finally, we pick the model with the best accuracy and apply to the testing set.
+  
+## Loading and preprocessing the data
+The first step is to load data from the working directory and convert the data into appropreate classes. Also we clean up the NAs in the dataset.
+```{r loaddata}
+if(!file.exists("training.csv")) {
+   download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","training.csv")
+}
+
+if(!file.exists("testing.csv")) {
+   download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv","testing.csv")
+}
+
+training <- read.csv("training.csv", na.strings=c("NA","#DIV/0!", ""))
+testing <- read.csv("testing.csv", na.strings=c("NA","#DIV/0!", ""))
+```
+  
+Next, we can explore the data by calling `str`. We can see that the first 6 columns are just row numbers, user and time stamp information, which should not have any influence on the model. We can also see that there are a lot of missing data.
+  
+```{r explore}
+str(training)
+```
+  
+Next, we will try to remove the columns with a lot of NAs. First, check for the percentage of missing value in the data.
+  
+```{r check na}
+missingdata <- sapply(training, function(x){sum(is.na(x))/length(x)})
+missingdata
+```
+  
+Here, we see there are several columns with large porportion of missing values, so we want to remove them. This time we remove columns with more than 80% NAs.
+  
+```{r remove na}
+training <- training[, !missingdata > 0.8]
+testing <- testing[, !missingdata > 0.8]
+```
+  
+Finally, we remove the first 6 columns which we intended to exclude from the model.
+  
+```{r remove first column}
+training <- training[, -(1:6)]
+testing <- testing[, -(1:6)]
+```
+  
+##Model Selection
+  
+We will be build sevaral models, compare their performance, then pick the one with the best accuracy performance. The models used are classification trees, random forest, K-nearest neighbor and linear discriminant analysis.
+  
+All of these methods will be done using K-fold cross validation. First, we create `control` which is a train control object with 5 fold cross validation.
+  
+```{r crossval}
+control = trainControl(method="cv", number = 5)
+```
+  
+Then we pass this into train function to create models. We also print the result and confusion matrix to show the accuracy.
+  
+```{r rpart, cache=TRUE}
+modrpart <- train(classe ~., method = "rpart", data = training, trControl = control)
+modrpart
+confusionMatrix(modrpart)
+```
+  
+```{r rf, cache=TRUE}
+modrf <- train(classe ~., method = "rf", data = training, trControl = control)
+modrf
+confusionMatrix(modrf)
+```
+  
+```{r knn, cache=TRUE}
+modknn <- train(classe ~., method = "knn", data = training, trControl = control)
+modknn
+confusionMatrix(modknn)
+```
+  
+```{r lda, cache=TRUE}
+modlda <- train(classe ~., method = "lda", data = training, trControl = control)
+modlda
+confusionMatrix(modlda)
+```
+  
+According to results above, the random forest model has the best accuracy of 99.82%. Hence, we will be using random forest to predict the test set.
+  
+##Prediction Quiz
+Finally, We apply the random forest model to the test set and get the final results.
+  
+```{r predict}
+submission <- predict(modrf, newdata = testing)
+names(submission) <- 1:20
+submission
+```
